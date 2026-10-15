@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Website Change Detector</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1><a href="/">🔎 Website Change Detector</a></h1><span class="sub">monitors public pages · ignores noise · alerts on real changes</span></header>
+<main>
+  <section class="card">
+    <h2>Add a page to watch</h2>
+    <form id="add">
+      <div class="grid">
+        <label>Name<input name="name" placeholder="VIT exam schedule" required></label>
+        <label>URL<input name="url" type="url" placeholder="https://example.com/page" required></label>
+        <label>Check every
+          <select name="interval_min">
+            <option value="15">15 minutes</option><option value="30">30 minutes</option>
+            <option value="60" selected>1 hour</option><option value="180">3 hours</option>
+            <option value="360">6 hours</option><option value="720">12 hours</option><option value="1440">24 hours</option>
+          </select>
+        </label>
+      </div>
+      <details>
+        <summary>Advanced options (noise, sensitivity, alerts)</summary>
+        <div class="grid">
+          <label>Watch only these regions (CSS selectors)<input name="watch_css" placeholder="#notices, .price"></label>
+          <label>Ignore these regions (CSS selectors)<input name="ignore_css" placeholder=".ads, #clock"></label>
+          <label>Sensitivity: min % of words changed<input name="sensitivity" type="number" min="0" max="100" step="0.5" value="0"></label>
+          <label>Alert only if change contains keyword(s)<input name="keywords" placeholder="exam, deadline"></label>
+          <label>Alerts<select name="alert_mode"><option value="instant">Instant</option><option value="digest">Daily digest</option></select></label>
+        </div>
+        <p>
+          <label class="inline"><input type="checkbox" name="noise_filter" checked> Hide ads, banners, carousels &amp; tickers</label>
+          <label class="inline"><input type="checkbox" name="ignore_numbers"> Treat all numbers as noise (counters, prices…)</label>
+        </p>
+        <p class="muted">Tip: after adding, use <b>Pick regions</b> to click on the parts of the page to watch or ignore.</p>
+      </details>
+      <button class="primary">Add monitor</button> <span id="msg" class="err"></span>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Monitors</h2>
+    <table>
+      <thead><tr><th>Page</th><th>Status</th><th>Last checked</th><th>Last changed</th><th>Versions</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </section>
+</main>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const when = t => t ? new Date(t).toLocaleString() : '—';
+const api = (u, o) => fetch(u, o).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; });
+
+async function load() {
+  const ms = await api('/api/monitors');
+  rows.innerHTML = ms.length ? ms.map(m => `<tr>
+    <td><b>${esc(m.name)}</b>${m.paused ? ' <span class="badge">paused</span>' : ''}<div class="url">${esc(m.url)}</div>
+      <div class="muted">every ${m.interval_min >= 60 ? m.interval_min / 60 + ' h' : m.interval_min + ' min'}${m.watchers > 1 ? ` · shared fetch with ${m.watchers - 1} other watcher(s)` : ''}</div></td>
+    <td><span class="badge ${esc(m.status)}">${esc(m.status)}</span>${m.last_error ? `<div class="err">${esc(m.last_error)}</div>` : ''}</td>
+    <td>${when(m.last_checked)}</td><td>${when(m.last_changed)}</td><td>${m.versions}</td>
+    <td class="actions">
+      <a class="btn" href="monitor.html?id=${m.id}">View</a>
+      <a class="btn" href="picker.html?id=${m.id}">Pick regions</a>
+      <button onclick="checkNow(${m.id})">Check now</button>
+      <button class="danger" onclick="del(${m.id})">Delete</button>
+    </td></tr>`).join('') : '<tr><td colspan="6" class="empty">No pages yet. Add one above.</td></tr>';
+}
+
+add.onsubmit = async e => {
+  e.preventDefault(); msg.textContent = '';
+  const d = Object.fromEntries(new FormData(add));
+  d.noise_filter = add.noise_filter.checked; d.ignore_numbers = add.ignore_numbers.checked;
+  try { await api('/api/monitors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); add.reset(); load(); }
+  catch (err) { msg.textContent = err.message; }
+};
+async function checkNow(id) { await api(`/api/monitors/${id}/check`, { method: 'POST' }); load(); }
+async function del(id) { if (confirm('Delete this monitor and all its versions?')) { await api(`/api/monitors/${id}`, { method: 'DELETE' }); load(); } }
+load(); setInterval(load, 10000);
+</script>
+</body>
+</html>

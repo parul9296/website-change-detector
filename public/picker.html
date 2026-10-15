@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pick regions</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1><a href="/">🔎 Website Change Detector</a></h1><span class="sub" id="crumb">Visual region picker</span></header>
+<main style="max-width:none">
+  <div class="picker">
+    <iframe id="frame" title="Page preview"></iframe>
+    <aside class="card" style="margin:0;overflow:auto">
+      <h2 id="title">Pick regions</h2>
+      <p class="muted">Choose a mode, then click any part of the page. The CSS selector is saved for you.</p>
+      <div class="tabs">
+        <button id="mWatch" class="active" onclick="setMode('watch')">✅ Watch</button>
+        <button id="mIgnore" onclick="setMode('ignore')">🚫 Ignore</button>
+      </div>
+      <p class="muted" id="last"></p>
+      <h2>Watching <span class="muted">(empty = whole page)</span></h2>
+      <div class="chips" id="watchList"></div>
+      <h2>Ignoring</h2>
+      <div class="chips" id="ignoreList"></div>
+      <p><button class="primary" onclick="save()">Save regions</button> <a class="btn" id="back">Back</a></p>
+      <p class="muted" id="msg">Loading page preview… (this renders the page in a headless browser)</p>
+    </aside>
+  </div>
+</main>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const id = new URLSearchParams(location.search).get('id');
+const split = s => (s || '').split(/[,\n]/).map(x => x.trim()).filter(Boolean);
+let monitor, mode = 'watch', watch = [], ignore = [];
+
+function setMode(m) { mode = m; mWatch.classList.toggle('active', m === 'watch'); mIgnore.classList.toggle('active', m === 'ignore'); }
+function draw() {
+  const chip = (list, cls) => list.map((s, i) => `<span class="chip ${cls}">${esc(s)}<button title="Remove" onclick="removeSel('${cls}',${i})">✕</button></span>`).join('') || '<span class="muted">none</span>';
+  watchList.innerHTML = chip(watch, 'watch'); ignoreList.innerHTML = chip(ignore, 'ignore');
+  frame.contentWindow && frame.contentWindow.postMessage({ cdHighlight: true, watch, ignore }, '*');
+}
+function removeSel(kind, i) { (kind === 'watch' ? watch : ignore).splice(i, 1); draw(); }
+
+window.addEventListener('message', e => {
+  if (e.source !== frame.contentWindow) return;
+  if (e.data.cdReady) { msg.textContent = 'Click on the page to add a region.'; draw(); }
+  if (e.data.cdSelector) {
+    const list = mode === 'watch' ? watch : ignore;
+    if (!list.includes(e.data.cdSelector)) list.push(e.data.cdSelector);
+    last.innerHTML = `Added to <b>${mode}</b>: <code>${esc(e.data.cdSelector)}</code><br>“${esc(e.data.text)}”`;
+    draw();
+  }
+});
+
+async function save() {
+  const body = { ...monitor, watch_css: watch.join(', '), ignore_css: ignore.join(', ') };
+  const r = await fetch(`/api/monitors/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  msg.textContent = r.ok ? 'Saved ✓ The next check will use these regions.' : j.error;
+  if (r.ok) monitor = j;
+}
+
+(async () => {
+  monitor = await (await fetch(`/api/monitors/${id}`)).json();
+  title.textContent = monitor.name; crumb.textContent = monitor.url; back.href = `monitor.html?id=${id}`;
+  watch = split(monitor.watch_css); ignore = split(monitor.ignore_css); draw();
+  frame.src = `/proxy/${id}`;
+})();
+</script>
+</body>
+</html>

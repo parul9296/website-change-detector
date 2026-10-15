@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monitor details</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1><a href="/">🔎 Website Change Detector</a></h1><span class="sub" id="crumb"></span></header>
+<main>
+  <section class="card">
+    <h2 id="title">Loading…</h2>
+    <div class="muted" id="meta"></div>
+    <p class="actions" style="margin-top:10px">
+      <a class="btn" id="pickLink">Pick regions</a>
+      <button onclick="checkNow()">Check now</button>
+      <button id="pauseBtn" onclick="togglePause()"></button>
+      <a class="btn" id="rssLink" target="_blank">RSS feed</a>
+    </p>
+    <details>
+      <summary>Settings</summary>
+      <form id="settings">
+        <div class="grid">
+          <label>Name<input name="name"></label>
+          <label>URL<input name="url" type="url"></label>
+          <label>Interval (minutes, 15–1440)<input name="interval_min" type="number" min="15" max="1440"></label>
+          <label>Watch regions (CSS)<input name="watch_css"></label>
+          <label>Ignore regions (CSS)<input name="ignore_css"></label>
+          <label>Sensitivity (min % changed)<input name="sensitivity" type="number" min="0" max="100" step="0.5"></label>
+          <label>Keywords<input name="keywords"></label>
+          <label>Alerts<select name="alert_mode"><option value="instant">Instant</option><option value="digest">Daily digest</option></select></label>
+        </div>
+        <p>
+          <label class="inline"><input type="checkbox" name="noise_filter"> Hide ads, banners, carousels &amp; tickers</label>
+          <label class="inline"><input type="checkbox" name="ignore_numbers"> Treat all numbers as noise</label>
+        </p>
+        <button class="primary">Save settings</button> <span id="smsg" class="muted"></span>
+      </form>
+    </details>
+  </section>
+
+  <div class="layout">
+    <section class="card">
+      <h2>Version timeline</h2>
+      <p class="muted">Pick any two versions: <b>A</b> = older, <b>B</b> = newer.</p>
+      <ul class="timeline" id="timeline"></ul>
+    </section>
+    <section class="card">
+      <h2>Compare</h2>
+      <div class="tabs">
+        <button data-tab="text" class="active">Text diff</button>
+        <button data-tab="side">Side by side</button>
+        <button data-tab="pixels">Highlighted screenshot</button>
+      </div>
+      <p class="muted" id="cmpSummary"></p>
+      <div id="cmp" class="empty">Need at least two versions to compare. The first check saves version 1; later versions appear when the page changes.</div>
+    </section>
+  </div>
+</main>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const when = t => t ? new Date(t).toLocaleString() : '—';
+const api = (u, o) => fetch(u, o).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; });
+const params = new URLSearchParams(location.search);
+const id = params.get('id');
+let monitor, snaps = [], A = null, B = params.get('b') ? +params.get('b') : null, tab = 'text', data = null;
+
+async function loadMonitor() {
+  monitor = await api(`/api/monitors/${id}`);
+  document.title = monitor.name;
+  title.textContent = monitor.name;
+  crumb.textContent = monitor.url;
+  meta.innerHTML = `<a href="${esc(monitor.url)}" target="_blank">${esc(monitor.url)}</a> · status <span class="badge ${esc(monitor.status)}">${esc(monitor.status)}</span>
+    ${monitor.last_error ? `<span class="err">${esc(monitor.last_error)}</span>` : ''} · last checked ${when(monitor.last_checked)} · last changed ${when(monitor.last_changed)}`;
+  pickLink.href = `picker.html?id=${id}`; rssLink.href = `/rss/${id}`;
+  pauseBtn.textContent = monitor.paused ? 'Resume' : 'Pause';
+  for (const el of settings.elements) {
+    if (!el.name) continue;
+    if (el.type === 'checkbox') el.checked = !!monitor[el.name]; else el.value = monitor[el.name] ?? '';
+  }
+}
+
+async function loadSnaps() {
+  snaps = await api(`/api/monitors/${id}/snapshots`);
+  if (snaps.length >= 2) {
+    if (!B || !snaps.some(s => s.id === B)) B = snaps[0].id;
+    if (!A || A >= B) { const older = snaps.filter(s => s.id < B); A = older.length ? older[0].id : null; }
+  }
+  timeline.innerHTML = snaps.length ? snaps.map((s, i) => `<li class="${s.id === A || s.id === B ? 'sel' : ''}">
+      <label class="inline" title="Version A"><input type="radio" name="A" value="${s.id}" ${s.id === A ? 'checked' : ''}>A</label>
+      <label class="inline" title="Version B"><input type="radio" name="B" value="${s.id}" ${s.id === B ? 'checked' : ''}>B</label>
+      <div><b>v${snaps.length - i}</b> · ${when(s.created_at)}<div class="muted">${esc(s.summary)}</div></div></li>`).join('')
+    : '<li class="muted">No versions yet. Waiting for the first check…</li>';
+  timeline.querySelectorAll('input[type=radio]').forEach(r => r.onchange = () => {
+    if (r.name === 'A') A = +r.value; else B = +r.value;
+    loadSnaps().then(compare);
+  });
+}
+
+async function compare() {
+  if (!A || !B || A === B) { cmpSummary.textContent = ''; return; }
+  const [a, b] = A < B ? [A, B] : [B, A];
+  data = await api(`/api/compare?a=${a}&b=${b}`);
+  cmpSummary.textContent = `${when(data.a.created_at)} → ${when(data.b.created_at)} · ${data.summary}`;
+  render();
+}
+
+function render() {
+  if (!data) return;
+  cmp.className = '';
+  if (tab === 'text') {
+    cmp.innerHTML = `<div class="diff">${data.parts.map(p => p.added ? `<ins>${esc(p.value)}</ins>` : p.removed ? `<del>${esc(p.value)}</del>` : esc(p.value)).join('')}</div>`;
+  } else if (tab === 'side') {
+    cmp.innerHTML = `<div class="side"><div><b>A</b> · ${when(data.a.created_at)}<img src="${data.a.shot}" loading="lazy"></div>
+      <div><b>B</b> · ${when(data.b.created_at)}<img src="${data.b.shot}" loading="lazy"></div></div>`;
+  } else {
+    cmp.innerHTML = data.diffImg
+      ? `<p class="muted">Changed pixels are highlighted in red (A vs B).</p><img class="shot" src="${data.diffImg}">`
+      : '<p class="muted">Screenshot diff not available for these versions.</p>';
+  }
+}
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
+  tab = b.dataset.tab; render();
+});
+
+settings.onsubmit = async e => {
+  e.preventDefault(); smsg.textContent = '';
+  const d = Object.fromEntries(new FormData(settings));
+  d.noise_filter = settings.noise_filter.checked; d.ignore_numbers = settings.ignore_numbers.checked; d.paused = monitor.paused;
+  try { await api(`/api/monitors/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); smsg.textContent = 'Saved ✓'; loadMonitor(); }
+  catch (err) { smsg.textContent = err.message; }
+};
+async function checkNow() { await api(`/api/monitors/${id}/check`, { method: 'POST' }); smsg.textContent = ''; setTimeout(refresh, 1500); }
+async function togglePause() {
+  await api(`/api/monitors/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...monitor, paused: !monitor.paused }) });
+  loadMonitor();
+}
+async function refresh() { await loadMonitor(); const n = snaps.length; await loadSnaps(); if (!data || snaps.length !== n) compare(); }
+refresh(); setInterval(refresh, 15000);
+</script>
+</body>
+</html>

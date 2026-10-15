@@ -1,0 +1,51 @@
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2129;--muted:#6b7280;--line:#e3e6ea;--accent:#e8590c;--accent-2:#fff1e6;
+  --ok:#2b8a3e;--err:#c92a2a;--warn:#e67700;--add:#d3f9d8;--rem:#ffe3e3}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+a{color:var(--accent)}
+header{background:#1d2129;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:18px;margin:0}
+header a{color:#fff;text-decoration:none}
+header .sub{color:#adb5bd;font-size:13px}
+main{max-width:1150px;margin:0 auto;padding:24px 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:20px}
+.card h2{margin:0 0 12px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:4px}
+label.inline{flex-direction:row;align-items:center;gap:6px;color:var(--text)}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text)}
+textarea{min-height:60px;resize:vertical}
+button,.btn{font:inherit;font-size:14px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--text);text-decoration:none;display:inline-block}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--err)}
+button:hover,.btn:hover{filter:brightness(.96)}
+details summary{cursor:pointer;color:var(--muted);margin:10px 0}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+td .url{color:var(--muted);font-size:12px;word-break:break-all}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#eee}
+.badge.ok{background:#d3f9d8;color:var(--ok)}.badge.error{background:var(--rem);color:var(--err)}
+.badge.blocked{background:#fff3bf;color:var(--warn)}.badge.pending{background:#e7f5ff;color:#1971c2}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.muted{color:var(--muted);font-size:13px}
+.empty{text-align:center;color:var(--muted);padding:30px}
+.err{color:var(--err);font-size:12px}
+.layout{display:grid;grid-template-columns:320px 1fr;gap:20px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}}
+.timeline{list-style:none;margin:0;padding:0;max-height:640px;overflow:auto}
+.timeline li{padding:10px;border-bottom:1px solid var(--line);font-size:13px;display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:start}
+.timeline li.sel{background:var(--accent-2)}
+.tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button.active{background:var(--text);color:#fff;border-color:var(--text)}
+.diff{white-space:pre-wrap;font:13px/1.6 ui-monospace,Consolas,monospace;background:#fafafa;border:1px solid var(--line);border-radius:6px;padding:12px;max-height:600px;overflow:auto}
+.diff ins{background:var(--add);text-decoration:none}.diff del{background:var(--rem)}
+.side{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.side img,.shot{width:100%;border:1px solid var(--line);border-radius:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{font:12px ui-monospace,Consolas,monospace;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:#fff}
+.chip.watch{border-color:var(--ok);color:var(--ok)}.chip.ignore{border-color:var(--err);color:var(--err)}
+.chip button{border:0;padding:0 0 0 6px;background:none;color:inherit}
+.picker{display:grid;grid-template-columns:1fr 300px;gap:16px;height:calc(100vh - 110px)}
+.picker iframe{width:100%;height:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+@media(max-width:850px){.picker{grid-template-columns:1fr;height:auto}.picker iframe{height:70vh}}
